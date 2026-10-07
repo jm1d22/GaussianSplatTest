@@ -1,1 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>index</title>
+  <link rel="icon" type="image/svg+xml" href="https://static.jawset.com/website/psht/postshot-icon.svg" />
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0f0f14; }
 
+    #help-btn {
+      position: absolute; top: 12px; left: 12px;
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: system-ui, sans-serif; font-size: 18px; font-weight: 600;
+      color: #cfd2da; background: rgba(0,0,0,0.4);
+      border: 1.5px solid rgba(207,210,218,0.7); cursor: pointer;
+      user-select: none; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #help-btn:hover { background: rgba(0,0,0,0.6); color: #fff; border-color: #fff; }
+
+    #help-overlay {
+      position: absolute; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.5); z-index: 10;
+    }
+    #help-overlay.open { display: flex; }
+    #help-panel {
+      position: relative; max-width: 360px; width: calc(100% - 48px);
+      font-family: system-ui, sans-serif; color: #cfd2da;
+      background: rgba(24,26,32,0.96); border-radius: 10px;
+      padding: 20px 24px 22px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    #help-panel h2 {
+      margin: 0 0 14px; font-size: 16px; font-weight: 600; color: #fff;
+    }
+    #help-panel h3 {
+      margin: 16px 0 8px; font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; color: #8b90a0;
+    }
+    #help-panel h3:first-of-type { margin-top: 0; }
+    #help-panel dl {
+      margin: 0; display: grid; grid-template-columns: auto 1fr;
+      gap: 6px 14px; align-items: center; font-size: 13px;
+    }
+    #help-panel dt { justify-self: start; }
+    #help-panel dd { margin: 0; color: #cfd2da; }
+    #help-panel a { color: #4c9aff; text-decoration: none; }
+    #help-panel a:hover { color: #7fb8ff; text-decoration: underline; }
+    #help-panel kbd {
+      display: inline-block; font-family: system-ui, sans-serif; font-size: 12px;
+      color: #e6e8ee; background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.14); border-radius: 4px;
+      padding: 2px 7px; white-space: nowrap;
+    }
+    #help-close {
+      position: absolute; top: 10px; right: 12px;
+      background: none; border: none; color: #8b90a0; cursor: pointer;
+      font-size: 20px; line-height: 1; padding: 4px;
+    }
+    #help-close:hover { color: #fff; }
+    #loading {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      font-family: system-ui, sans-serif; font-size: 16px; color: #cfd2da;
+    }
+    #loading .spinner {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #4c9aff;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/gh/sparkjsdev/spark@8a033bc12a44f14335f3c5430f2d9f5fe22019fb/dist/spark.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <button id="help-btn" title="Controls" aria-label="Show controls">?</button>
+  <div id="help-overlay">
+    <div id="help-panel">
+      <button id="help-close" aria-label="Close">&times;</button>
+      <h2>Controls</h2>
+
+      <h3>Mouse</h3>
+      <dl>
+        <dt><kbd>Left-drag</kbd></dt><dd>Orbit</dd>
+        <dt><kbd>Right-drag</kbd></dt><dd>Pan</dd>
+        <dt><kbd>Middle-drag</kbd></dt><dd>Zoom</dd>
+        <dt><kbd>Scroll</kbd></dt><dd>Zoom</dd>
+        <dt><kbd>Shift</kbd>/<kbd>Ctrl</kbd> + <kbd>Left-drag</kbd></dt><dd>Pan</dd>
+        <dt><kbd>Double-click</kbd></dt><dd>Target point</dd>
+      </dl>
+
+      <h3>Touch</h3>
+      <dl>
+        <dt><kbd>One finger</kbd></dt><dd>Orbit</dd>
+        <dt><kbd>Two fingers</kbd></dt><dd>Zoom &amp; pan</dd>
+      </dl>
+
+      <h3>Keyboard</h3>
+      <dl>
+        <dt><kbd>H</kbd></dt><dd>Reset view</dd>
+      </dl>
+
+      <h3>Help</h3>
+      <dl>
+        <dd><a href="https://www.jawset.com/docs/d/Postshot+User+Guide/" target="_blank">Postshot User Guide</a></dd>
+      </dl>
+    </div>
+  </div>
+  <div id="loading">
+    <span>Loading scene…</span>
+    <div class="spinner"></div>
+  </div>
+
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { SparkRenderer, SplatMesh, modifiers, dyno } from "@sparkjsdev/spark";
+
+    const scene = new THREE.Scene();
+
+    const FOCAL_LENGTH = 30;
+    const camera = new THREE.PerspectiveCamera(
+      50, window.innerWidth / window.innerHeight, 0.01, 100000
+    );
+    camera.filmGauge = 36;
+    camera.setFocalLength(FOCAL_LENGTH);
+    camera.position.set(42.2596, 39.0003, -52.2092);
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const spark = new SparkRenderer({ renderer });
+    spark.premultipliedAlpha = false;
+    spark.blurAmount = 0.3;
+    spark.maxStdDev = 3.0;
+    spark.autoUpdate = false;
+    spark.minSortIntervalMs = 0;
+    scene.add(spark);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(-5.86561, 10.2858, 12.9714);
+    controls.saveState();
+    controls.update();
+
+    const splat = new SplatMesh({ url: "index.spz" });
+
+    splat.quaternion.set(1, 0, 0, 0);
+    splat.position.set(0, 0, 0);
+    scene.add(splat);
+
+    let loading = true;
+    let drawScheduled = false;
+    let sortInFlight = false;
+    let sortPending = false;
+    let probing = false;
+
+    function draw() {
+      drawScheduled = false;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    function requestDraw() {
+      if (probing) return;
+      if (!drawScheduled) {
+        drawScheduled = true;
+        requestAnimationFrame(draw);
+      }
+    }
+
+    async function pumpSort() {
+      if (probing) return;
+      if (sortInFlight || !sortPending) return;
+      sortInFlight = true;
+      sortPending = false;
+      try {
+        await spark.update({ scene, camera });
+      } finally {
+        sortInFlight = false;
+      }
+      requestDraw();
+      if (sortPending) pumpSort();
+    }
+
+    function requestRender() {
+      requestDraw();
+      sortPending = true;
+      pumpSort();
+    }
+
+    controls.addEventListener("change", () => requestRender());
+
+    const helpOverlay = document.getElementById("help-overlay");
+    const openHelp = () => helpOverlay.classList.add("open");
+    const closeHelp = () => helpOverlay.classList.remove("open");
+    document.getElementById("help-btn").addEventListener("click", openHelp);
+    document.getElementById("help-close").addEventListener("click", closeHelp);
+    helpOverlay.addEventListener("click", (e) => {
+      if (e.target === helpOverlay) closeHelp();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeHelp();
+      } else if (e.key === "h" || e.key === "H") {
+        animateView(controls.target0, controls.position0);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.setFocalLength(FOCAL_LENGTH);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      requestRender();
+    });
+
+    const TARGET_ANIM_FRAMES = 15;
+    let viewAnimId = 0;
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function animateView(toTarget, toPosition = null, frames = TARGET_ANIM_FRAMES) {
+      const id = ++viewAnimId;
+      const fromTarget = controls.target.clone();
+      const toTargetTo = toTarget && toTarget.clone();
+      const fromPosition = camera.position.clone();
+      const toPositionTo = toPosition && toPosition.clone();
+      const total = Math.max(1, frames | 0);
+
+      function step(frame) {
+        if (id !== viewAnimId) return;
+        const t = easeInOutCubic(frame / total);
+        if (toTargetTo) controls.target.lerpVectors(fromTarget, toTargetTo, t);
+        if (toPositionTo) camera.position.lerpVectors(fromPosition, toPositionTo, t);
+        if (frame >= total) {
+          requestRender();
+        } else {
+          requestDraw();
+          requestAnimationFrame(() => step(frame + 1));
+        }
+      }
+      step(1);
+    }
+
+    let probeTarget = null;
+
+    let depthModifier = null;
+    let depthMinDyno = null;
+    let depthMaxDyno = null;
+    function ensureDepthModifier() {
+      if (depthModifier) return;
+      depthMinDyno = dyno.dynoFloat(1);
+      depthMaxDyno = dyno.dynoFloat(100);
+      splat.enableWorldToView = true;
+      depthModifier = modifiers.makeDepthColorModifier(
+        splat.context.worldToView, depthMinDyno, depthMaxDyno, dyno.dynoBool(false)
+      );
+    }
+
+    async function probeDepth(clientX, clientY) {
+      if (probing || loading) return;
+      probing = true;
+      const prevModifier = splat.worldModifier;
+      const prevSortInterval = spark.minSortIntervalMs;
+      let depthApplied = false;
+      try {
+        while (sortInFlight) {
+          await new Promise((r) => requestAnimationFrame(r));
+        }
+
+        spark.minSortIntervalMs = 1e12;
+
+        const dist = camera.position.distanceTo(controls.target);
+        const minDepth = Math.max(camera.near, dist * 0.2);
+        const maxDepth = Math.max(minDepth + 1e-3, dist * 2.5);
+
+        ensureDepthModifier();
+        depthMinDyno.value = minDepth;
+        depthMaxDyno.value = maxDepth;
+        splat.worldModifier = depthModifier;
+        depthApplied = true;
+        splat.updateGenerator();
+        await spark.update({ scene, camera });
+
+        const dbuf = renderer.getDrawingBufferSize(new THREE.Vector2());
+        const bufW = dbuf.x, bufH = dbuf.y;
+        if (!probeTarget || probeTarget.width !== bufW || probeTarget.height !== bufH) {
+          probeTarget?.dispose();
+          probeTarget = new THREE.WebGLRenderTarget(bufW, bufH);
+        }
+        const dpr = renderer.getPixelRatio();
+        const bx = Math.min(bufW - 1, Math.max(0, Math.floor(clientX * dpr)));
+        const by = Math.min(bufH - 1, Math.max(0, bufH - 1 - Math.floor(clientY * dpr)));
+
+        const TILE = 8;
+        const sx = Math.max(0, Math.min(bufW - TILE, bx - (TILE >> 1)));
+        const sy = Math.max(0, Math.min(bufH - TILE, by - (TILE >> 1)));
+        probeTarget.scissorTest = true;
+        probeTarget.scissor.set(sx, sy, TILE, TILE);
+
+        const prevWorking = THREE.ColorManagement.workingColorSpace;
+        const prevTarget = renderer.getRenderTarget();
+        THREE.ColorManagement.workingColorSpace = THREE.SRGBColorSpace;
+        const pixel = new Uint8Array(4);
+        try {
+          renderer.setRenderTarget(probeTarget);
+          renderer.render(scene, camera);
+          await renderer.readRenderTargetPixelsAsync(probeTarget, bx, by, 1, 1, pixel);
+        } finally {
+          renderer.setRenderTarget(prevTarget);
+          THREE.ColorManagement.workingColorSpace = prevWorking;
+        }
+        const r = pixel[0], a = pixel[3];
+
+        if (a >= 8) {
+          const norm = Math.min(1, r / a);
+          const l0 = Math.log2(minDepth + 1);
+          const l1 = Math.log2(maxDepth + 1);
+          const depth = Math.pow(2, l0 + norm * (l1 - l0)) - 1;
+
+          const ndcX = (clientX / window.innerWidth) * 2 - 1;
+          const ndcY = -(clientY / window.innerHeight) * 2 + 1;
+          const rayDir = new THREE.Vector3(ndcX, ndcY, 0.5)
+            .unproject(camera).sub(camera.position).normalize();
+          const forward = camera.getWorldDirection(new THREE.Vector3());
+          const t = depth / Math.max(1e-6, rayDir.dot(forward));
+          const newTarget = camera.position.clone().addScaledVector(rayDir, t);
+          animateView(newTarget);
+        }
+      } catch (err) {
+        console.error("Depth probe failed:", err);
+      } finally {
+        if (depthApplied) {
+          splat.worldModifier = prevModifier;
+          splat.updateGenerator();
+          try { await spark.update({ scene, camera }); } catch (e) { console.error(e); }
+        }
+        spark.minSortIntervalMs = prevSortInterval;
+        probing = false;
+        requestRender();
+      }
+    }
+
+    renderer.domElement.addEventListener("dblclick", (e) => {
+      probeDepth(e.clientX, e.clientY);
+    });
+
+    (function loadingLoop() {
+      if (!loading) return;
+      requestRender();
+      requestAnimationFrame(loadingLoop);
+    })();
+
+    splat.initialized
+      .then(() => {
+        document.getElementById("loading").remove();
+        loading = false;
+        requestRender();
+      })
+      .catch((err) => {
+        document.getElementById("loading").textContent = "Failed to load scene: " + err;
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
